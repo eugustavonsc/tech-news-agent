@@ -50,6 +50,7 @@ def fetch_newsapi():
             "url": a.get("url"),
             "source": (a.get("source") or {}).get("name", "NewsAPI.org"),
             "published_at": a.get("publishedAt"),
+            "image_url": a.get("urlToImage"),
         }
         for a in articles
         if a.get("url")
@@ -80,6 +81,7 @@ def fetch_newsdata():
             "url": a.get("link"),
             "source": a.get("source_id", "NewsData.io"),
             "published_at": a.get("pubDate"),
+            "image_url": a.get("image_url"),
         }
         for a in articles
         if a.get("link")
@@ -110,6 +112,7 @@ def fetch_gnews():
             "url": a.get("url"),
             "source": (a.get("source") or {}).get("name", "GNews"),
             "published_at": a.get("publishedAt"),
+            "image_url": a.get("image"),
         }
         for a in articles
         if a.get("url")

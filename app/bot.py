@@ -47,7 +47,7 @@ def main():
                 logger.info("Descartado (irrelevante): %s", article["url"])
                 continue
             for chat_id in subscribers:
-                send_message(summary, chat_id=chat_id)
+                send_message(summary, chat_id=chat_id, image_url=article.get("image_url"))
             database.mark_sent(article["url"])
             logger.info("Enviado a %d inscritos: %s", len(subscribers), article["url"])
         except Exception:

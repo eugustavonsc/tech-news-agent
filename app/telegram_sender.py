@@ -7,12 +7,43 @@ from app import config, database
 logger = logging.getLogger(__name__)
 
 
-def send_message(text, chat_id=None):
+TELEGRAM_CAPTION_LIMIT = 1024
+
+
+def send_message(text, chat_id=None, image_url=None):
+    target_chat_id = chat_id or config.TELEGRAM_CHAT_ID
+
+    if image_url and len(text) <= TELEGRAM_CAPTION_LIMIT:
+        try:
+            return _send_photo(target_chat_id, image_url, text)
+        except requests.RequestException:
+            logger.warning("Falha ao enviar imagem, enviando como texto: %s", image_url)
+
+    return _send_text(target_chat_id, text)
+
+
+def _send_photo(chat_id, image_url, caption):
+    url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
+    response = requests.post(
+        url,
+        json={
+            "chat_id": chat_id,
+            "photo": image_url,
+            "caption": caption,
+            "parse_mode": "Markdown",
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _send_text(chat_id, text):
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
     response = requests.post(
         url,
         json={
-            "chat_id": chat_id or config.TELEGRAM_CHAT_ID,
+            "chat_id": chat_id,
             "text": text,
             "parse_mode": "Markdown",
             "disable_web_page_preview": False,

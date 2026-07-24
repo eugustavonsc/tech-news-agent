@@ -10,7 +10,7 @@ Execução única por invocação (sem loop contínuo), pensada para rodar via *
 2. Busca notícias em três fontes: [NewsAPI.org](https://newsapi.org), [NewsData.io](https://newsdata.io) e [GNews](https://gnews.io) (filtradas por `pt`/tecnologia).
 3. Remove duplicatas por URL e aplica um filtro de palavras-chave para descartar ruído óbvio.
 4. Para cada notícia nova (ainda não enviada, conforme o Postgres): pede ao LLM um resumo formatado; se o LLM concluir que não é genuinamente sobre tecnologia, a notícia é descartada.
-5. Envia o resumo para todos os chats inscritos e marca a URL como enviada no banco.
+5. Envia o resumo para todos os chats inscritos — como foto (com a imagem da notícia, quando disponível) ou como texto puro, caso não haja imagem ou a legenda seja longa demais — e marca a URL como enviada no banco.
 
 ### Inscrições
 
