@@ -3,4 +3,5 @@ venv/
 __pycache__/
 *.pyc
 *.md
+!README.md
 heroku.txt
