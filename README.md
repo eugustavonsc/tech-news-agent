@@ -8,10 +8,12 @@ Execução única por invocação (sem loop contínuo), pensada para rodar via *
 
 1. Verifica mensagens novas recebidas pelo bot (`getUpdates`): quem mandou `/start` é registrado como inscrito no Postgres. O `TELEGRAM_CHAT_ID` do `.env` é sempre inscrito automaticamente.
 2. Busca notícias em três fontes: [NewsAPI.org](https://newsapi.org), [NewsData.io](https://newsdata.io) e [GNews](https://gnews.io) (filtradas por `pt`/tecnologia).
-3. Remove duplicatas por URL e aplica um filtro de palavras-chave (busca por palavra inteira, ignorando acentos) para descartar ruído óbvio antes de gastar chamada de LLM.
+3. Remove duplicatas: por URL normalizada (ignora `http`/`https`, barra final e parâmetros de tracking como `utm_*`) e por título quase idêntico (conteúdo sindicalizado publicado por fontes diferentes com o mesmo texto). Depois aplica um filtro de palavras-chave (busca por palavra inteira, ignorando acentos) para descartar ruído óbvio antes de gastar chamada de LLM.
 4. Para cada notícia nova (ainda não enviada, conforme o Postgres): pede ao LLM um resumo formatado; se o LLM concluir que não é genuinamente sobre tecnologia (ex: só cita "tecnologia" de passagem), a notícia é descartada — essa é a triagem final, mais precisa que o filtro de palavras-chave.
 5. Envia o resumo para todos os chats inscritos — como foto (com a imagem da notícia, quando disponível) ou como texto puro, caso não haja imagem ou a legenda seja longa demais — e marca a URL como enviada no banco.
 6. Remove do banco os registros de notícias enviadas há mais de `RETENTION_DAYS` dias, para manter o tamanho do Postgres sob controle.
+
+> O dedupe por título só pega textos quase idênticos (mesma redação, fontes diferentes); não detecta a mesma notícia contada com palavras totalmente diferentes por dois veículos — isso exigiria comparação semântica via LLM.
 
 ### Inscrições
 
@@ -22,7 +24,8 @@ Qualquer pessoa pode receber as notícias mandando `/start` para o bot no Telegr
 ```
 app/
   config.py           # leitura centralizada das variáveis de ambiente
-  fetcher.py          # busca e agrega notícias das 3 APIs, dedupe e filtro por palavra-chave
+  urls.py              # normalização de URL para deduplicação
+  fetcher.py          # busca e agrega notícias das 3 APIs, dedupe (URL e título) e filtro por palavra-chave
   summarizer.py        # resume via DeepSeek (OpenCoderGo); marca notícias irrelevantes
   telegram_sender.py   # envia mensagens e sincroniza inscritos via Telegram Bot API
   database.py          # Postgres (pool de conexões): notícias enviadas e chats inscritos

@@ -1,3 +1,4 @@
+import difflib
 import logging
 import re
 import unicodedata
@@ -5,8 +6,11 @@ import unicodedata
 import requests
 
 from app import config
+from app.urls import normalize_url
 
 logger = logging.getLogger(__name__)
+
+TITLE_SIMILARITY_THRESHOLD = 0.85
 
 REQUEST_TIMEOUT = 10
 
@@ -52,6 +56,30 @@ _TECH_PATTERN = re.compile(
 def is_tech_related(article):
     haystack = _strip_accents(f"{article.get('title') or ''} {article.get('description') or ''}")
     return bool(_TECH_PATTERN.search(haystack))
+
+
+def _normalize_title(title):
+    text = _strip_accents((title or "").lower())
+    text = re.sub(r"[^\w\s]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _dedupe_similar_titles(articles):
+    """Descarta notícias cujo título é quase idêntico ao de outra já
+    mantida (conteúdo sindicalizado publicado por fontes diferentes)."""
+    kept = []
+    kept_norm_titles = []
+    for article in articles:
+        norm_title = _normalize_title(article.get("title"))
+        is_duplicate = any(
+            difflib.SequenceMatcher(None, norm_title, kept_title).ratio() >= TITLE_SIMILARITY_THRESHOLD
+            for kept_title in kept_norm_titles
+        )
+        if is_duplicate:
+            continue
+        kept.append(article)
+        kept_norm_titles.append(norm_title)
+    return kept
 
 
 def fetch_newsapi():
@@ -162,11 +190,12 @@ def fetch_all_news():
     seen_urls = set()
     unique_articles = []
     for article in articles:
-        if article["url"] in seen_urls:
+        key = normalize_url(article["url"])
+        if key in seen_urls:
             continue
-        seen_urls.add(article["url"])
+        seen_urls.add(key)
         unique_articles.append(article)
 
     tech_articles = [a for a in unique_articles if is_tech_related(a)]
     tech_articles.sort(key=lambda a: a.get("published_at") or "", reverse=True)
-    return tech_articles
+    return _dedupe_similar_titles(tech_articles)

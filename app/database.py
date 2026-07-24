@@ -1,6 +1,7 @@
 import psycopg2.pool
 
 from app import config
+from app.urls import normalize_url
 
 _pool = None
 
@@ -95,7 +96,7 @@ def set_last_update_id(value):
 
 def is_sent(url):
     with _PooledConnection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM sent_news WHERE url = %s", (url,))
+        cur.execute("SELECT 1 FROM sent_news WHERE url = %s", (normalize_url(url),))
         return cur.fetchone() is not None
 
 
@@ -103,7 +104,7 @@ def mark_sent(url):
     with _PooledConnection() as conn, conn.cursor() as cur:
         cur.execute(
             "INSERT INTO sent_news (url) VALUES (%s) ON CONFLICT (url) DO NOTHING",
-            (url,),
+            (normalize_url(url),),
         )
 
 
