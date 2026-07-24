@@ -1,4 +1,6 @@
 import logging
+import re
+import unicodedata
 
 import requests
 
@@ -9,21 +11,47 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 10
 
 TECH_KEYWORDS = (
-    "tecnologia", "tech", "inteligência artificial", "software", "hardware",
-    "aplicativo", "smartphone", "celular", "internet", "digital", "robô",
-    "robótica", "startup", "chip", "semicondutor", "5g", "nuvem",
-    "cibersegurança", "cripto", "blockchain", "programação", "algoritmo",
-    "telecomunicações", "gadget", "wearable", "realidade virtual",
-    "realidade aumentada", "drone", "satélite", "gpu", "nvidia", "wi-fi",
-    "wifi", "computador", "notebook", "google", "apple", "microsoft",
-    "meta", "amazon", "openai", "deepseek", "nasa", "spacex", "elon musk",
-    "quântico",
+    "tecnologia", "tech", "techs", "inteligencia artificial", "software",
+    "hardware", "aplicativo", "app", "smartphone", "celular", "internet",
+    "digital", "robo", "robotica", "startup", "chip", "semicondutor", "5g",
+    "nuvem", "cloud", "ciberseguranca", "cripto", "blockchain",
+    "programacao", "algoritmo", "telecomunicacoes", "gadget", "wearable",
+    "realidade virtual", "realidade aumentada", "drone", "satelite", "gpu",
+    "npu", "wi-fi", "wifi", "computador", "notebook", "quantico",
+    "redes neurais", "codigo aberto", "open source", "automacao",
+    "humanoide",
+
+    "ia", "llm", "prompt", "chatgpt", "copilot", "gemini", "midjourney",
+    "anthropic", "claude", "hugging face",
+
+    "google", "apple", "microsoft", "meta", "amazon", "openai", "deepseek",
+    "nasa", "spacex", "elon musk", "nvidia", "samsung", "intel", "amd",
+    "tsmc", "tesla", "xiaomi",
+
+    "hacker", "malware", "ransomware", "phishing", "vazamento de dados",
+    "data center", "servidor", "linux", "android", "ios", "api",
+
+    "streaming", "smartwatch", "fintech", "deeptech", "e-commerce",
+    "big tech",
+)
+
+
+def _strip_accents(text):
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+_TECH_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(_strip_accents(k)) for k in TECH_KEYWORDS) + r")\b",
+    re.IGNORECASE,
 )
 
 
 def is_tech_related(article):
-    haystack = f"{article.get('title') or ''} {article.get('description') or ''}".lower()
-    return any(keyword in haystack for keyword in TECH_KEYWORDS)
+    haystack = _strip_accents(f"{article.get('title') or ''} {article.get('description') or ''}")
+    return bool(_TECH_PATTERN.search(haystack))
 
 
 def fetch_newsapi():
