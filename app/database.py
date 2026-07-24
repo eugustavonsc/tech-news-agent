@@ -107,6 +107,18 @@ def mark_sent(url):
         )
 
 
+def cleanup_old_news(days=None):
+    """Remove do sent_news as notícias mais antigas que `days` dias, para
+    manter o tamanho do banco sob controle. Retorna quantas linhas caíram."""
+    retention_days = days if days is not None else config.RETENTION_DAYS
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM sent_news WHERE sent_at < NOW() - %s * INTERVAL '1 day'",
+            (retention_days,),
+        )
+        return cur.rowcount
+
+
 def close_pool():
     if _pool is not None:
         _pool.closeall()

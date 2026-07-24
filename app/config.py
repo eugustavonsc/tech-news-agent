@@ -17,3 +17,4 @@ NEWSDATA_IO_KEY = os.getenv("NEWSDATA_IO_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
 MAX_NEWS_PER_RUN = int(os.getenv("MAX_NEWS_PER_RUN", "10"))
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "90"))

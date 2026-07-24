@@ -11,6 +11,7 @@ Execução única por invocação (sem loop contínuo), pensada para rodar via *
 3. Remove duplicatas por URL e aplica um filtro de palavras-chave para descartar ruído óbvio.
 4. Para cada notícia nova (ainda não enviada, conforme o Postgres): pede ao LLM um resumo formatado; se o LLM concluir que não é genuinamente sobre tecnologia, a notícia é descartada.
 5. Envia o resumo para todos os chats inscritos — como foto (com a imagem da notícia, quando disponível) ou como texto puro, caso não haja imagem ou a legenda seja longa demais — e marca a URL como enviada no banco.
+6. Remove do banco os registros de notícias enviadas há mais de `RETENTION_DAYS` dias, para manter o tamanho do Postgres sob controle.
 
 ### Inscrições
 
@@ -44,6 +45,7 @@ Copie `.env.example` para `.env` e preencha:
 | `NEWSDATA_IO_KEY` | Chave da API NewsData.io |
 | `GNEWS_API_KEY` | Chave da API GNews |
 | `MAX_NEWS_PER_RUN` | Máximo de notícias enviadas por execução (padrão: `10`) |
+| `RETENTION_DAYS` | Dias de histórico mantidos no `sent_news` antes de ser limpo (padrão: `90`) |
 
 ⚠️ **Importante:** o bot só consegue enviar mensagens para chats que já iniciaram contato com ele — o dono precisa mandar `/start` para o bot no Telegram antes da primeira execução (veja [Inscrições](#inscrições)).
 

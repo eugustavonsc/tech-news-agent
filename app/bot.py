@@ -23,6 +23,10 @@ def build_raw_text(article):
 
 def main():
     database.init_db()
+    removed = database.cleanup_old_news()
+    if removed:
+        logger.info("%d notícias antigas removidas do banco (retenção de %d dias)", removed, config.RETENTION_DAYS)
+
     sync_subscribers()
 
     subscribers = database.get_subscribers()
