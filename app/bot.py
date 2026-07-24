@@ -4,7 +4,7 @@ import time
 from app import config, database
 from app.fetcher import fetch_all_news
 from app.summarizer import IRRELEVANT_MARKER, format_news_with_llm
-from app.telegram_sender import send_message
+from app.telegram_sender import send_message, sync_subscribers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -23,6 +23,14 @@ def build_raw_text(article):
 
 def main():
     database.init_db()
+    sync_subscribers()
+
+    subscribers = database.get_subscribers()
+    logger.info("%d inscritos", len(subscribers))
+    if not subscribers:
+        logger.warning("Nenhum inscrito, encerrando sem buscar notícias.")
+        database.close_pool()
+        return
 
     articles = fetch_all_news()
     logger.info("%d notícias encontradas", len(articles))
@@ -38,9 +46,10 @@ def main():
                 database.mark_sent(article["url"])
                 logger.info("Descartado (irrelevante): %s", article["url"])
                 continue
-            send_message(summary)
+            for chat_id in subscribers:
+                send_message(summary, chat_id=chat_id)
             database.mark_sent(article["url"])
-            logger.info("Enviado: %s", article["url"])
+            logger.info("Enviado a %d inscritos: %s", len(subscribers), article["url"])
         except Exception:
             logger.exception("Falha ao processar notícia: %s", article["url"])
         time.sleep(SECONDS_BETWEEN_MESSAGES)

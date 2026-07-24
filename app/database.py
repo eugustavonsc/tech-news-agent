@@ -35,6 +35,62 @@ def init_db():
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS subscribers (
+                chat_id BIGINT PRIMARY KEY,
+                subscribed_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+
+    if config.TELEGRAM_CHAT_ID:
+        add_subscriber(config.TELEGRAM_CHAT_ID)
+
+
+def add_subscriber(chat_id):
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO subscribers (chat_id) VALUES (%s) ON CONFLICT (chat_id) DO NOTHING",
+            (chat_id,),
+        )
+
+
+def remove_subscriber(chat_id):
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM subscribers WHERE chat_id = %s", (chat_id,))
+
+
+def get_subscribers():
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT chat_id FROM subscribers")
+        return [row[0] for row in cur.fetchall()]
+
+
+def get_last_update_id():
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT value FROM bot_state WHERE key = 'last_update_id'")
+        row = cur.fetchone()
+        return int(row[0]) if row else None
+
+
+def set_last_update_id(value):
+    with _PooledConnection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO bot_state (key, value) VALUES ('last_update_id', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """,
+            (str(value),),
+        )
 
 
 def is_sent(url):

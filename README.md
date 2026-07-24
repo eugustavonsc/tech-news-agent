@@ -1,15 +1,20 @@
 # 🤖 Tech News Agent
 
-Bot que busca notícias de tecnologia, resume com um LLM (DeepSeek via OpenCoderGo) e posta automaticamente em um chat do Telegram, evitando reenviar notícias já publicadas.
+Bot que busca notícias de tecnologia, resume com um LLM (DeepSeek via OpenCoderGo) e posta automaticamente no Telegram para todos os chats inscritos, evitando reenviar notícias já publicadas.
 
 ## Como funciona
 
 Execução única por invocação (sem loop contínuo), pensada para rodar via **Heroku Scheduler** algumas vezes ao dia:
 
-1. Busca notícias em três fontes: [NewsAPI.org](https://newsapi.org), [NewsData.io](https://newsdata.io) e [GNews](https://gnews.io) (filtradas por `pt`/tecnologia).
-2. Remove duplicatas por URL e aplica um filtro de palavras-chave para descartar ruído óbvio.
-3. Para cada notícia nova (ainda não enviada, conforme o Postgres): pede ao LLM um resumo formatado; se o LLM concluir que não é genuinamente sobre tecnologia, a notícia é descartada.
-4. Envia o resumo para o Telegram e marca a URL como enviada no banco.
+1. Verifica mensagens novas recebidas pelo bot (`getUpdates`): quem mandou `/start` é registrado como inscrito no Postgres. O `TELEGRAM_CHAT_ID` do `.env` é sempre inscrito automaticamente.
+2. Busca notícias em três fontes: [NewsAPI.org](https://newsapi.org), [NewsData.io](https://newsdata.io) e [GNews](https://gnews.io) (filtradas por `pt`/tecnologia).
+3. Remove duplicatas por URL e aplica um filtro de palavras-chave para descartar ruído óbvio.
+4. Para cada notícia nova (ainda não enviada, conforme o Postgres): pede ao LLM um resumo formatado; se o LLM concluir que não é genuinamente sobre tecnologia, a notícia é descartada.
+5. Envia o resumo para todos os chats inscritos e marca a URL como enviada no banco.
+
+### Inscrições
+
+Qualquer pessoa pode receber as notícias mandando `/start` para o bot no Telegram, e cancelar mandando `/stop` — o efeito só é aplicado na próxima execução do job (não é instantâneo, já que o bot não fica ouvindo em tempo real).
 
 ## Estrutura
 
@@ -18,8 +23,8 @@ app/
   config.py           # leitura centralizada das variáveis de ambiente
   fetcher.py          # busca e agrega notícias das 3 APIs, dedupe e filtro por palavra-chave
   summarizer.py        # resume via DeepSeek (OpenCoderGo); marca notícias irrelevantes
-  telegram_sender.py   # envia mensagens via Telegram Bot API
-  database.py          # Postgres (pool de conexões) para controle de notícias já enviadas
+  telegram_sender.py   # envia mensagens e sincroniza inscritos via Telegram Bot API
+  database.py          # Postgres (pool de conexões): notícias enviadas e chats inscritos
   bot.py                # orquestra o fluxo completo (ponto de entrada)
 ```
 
@@ -40,7 +45,7 @@ Copie `.env.example` para `.env` e preencha:
 | `GNEWS_API_KEY` | Chave da API GNews |
 | `MAX_NEWS_PER_RUN` | Máximo de notícias enviadas por execução (padrão: `10`) |
 
-⚠️ **Importante:** o bot só consegue enviar mensagens para um chat que já iniciou contato com ele — mande `/start` para o bot no Telegram antes do primeiro envio.
+⚠️ **Importante:** o bot só consegue enviar mensagens para chats que já iniciaram contato com ele — o dono precisa mandar `/start` para o bot no Telegram antes da primeira execução (veja [Inscrições](#inscrições)).
 
 ## Rodando localmente
 
