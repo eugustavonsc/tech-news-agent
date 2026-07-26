@@ -12,6 +12,46 @@ OPENCODER_API_KEY = os.getenv("OPENCODER_API_KEY")
 OPENCODER_BASE_URL = os.getenv("OPENCODER_BASE_URL")
 MODEL_ID = os.getenv("MODEL_ID", "deepseek-v4-flash")
 
+# Modelo por tarefa, cada um caindo em MODEL_ID quando não configurado.
+#
+# A cota do OpenCode Go é por modelo, e o mesmo login é usado para revisão de
+# código no dia a dia. Aqui a assimetria é grande: o curador roda uma vez por
+# execução (~144 vezes/dia, com até CURATOR_CANDIDATE_LIMIT candidatas no prompt)
+# e responde por praticamente todo o consumo do projeto, enquanto o summarizer
+# roda só para as aprovadas (~7 vezes/dia).
+#
+# Consequência prática: o curador deve ficar num modelo barato — subi-lo de
+# faixa multiplica o gasto por ~10 e passa a competir com a revisão de código.
+# O summarizer é grátis na prática e escreve o texto que os inscritos leem, então
+# é ele quem vale mover para um modelo melhor.
+CURATOR_MODEL_ID = os.getenv("CURATOR_MODEL_ID") or MODEL_ID
+SUMMARIZER_MODEL_ID = os.getenv("SUMMARIZER_MODEL_ID") or MODEL_ID
+
+# ⚠️ Só modelos do endpoint /v1/chat/completions: os Qwen e MiniMax do catálogo
+# ficam em /v1/messages (formato Anthropic) e não respondem ao cliente `openai`.
+#
+# O bot_instagram tem um `llm.py` que despacha entre os dois formatos; aqui a
+# decisão foi NÃO ter, e o motivo não é preguiça — é que a barreira protege.
+# Medido com test_summarizer.py: o `minimax-m3` reconheceu que a notícia era
+# fora de tema ("o tema central é administração esportiva, não tecnologia em si")
+# e a resumiu assim mesmo, em vez de devolver IRRELEVANTE. Habilitar essa família
+# trocaria um erro barulhento de API por um erro editorial mudo — matéria de
+# futebol indo para os inscritos e para a instagram_queue.
+_MODELOS_FORMATO_ANTHROPIC = (
+    "minimax-m3", "minimax-m2.7", "minimax-m2.5",
+    "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus",
+)
+for _nome, _valor in (("MODEL_ID", MODEL_ID),
+                      ("CURATOR_MODEL_ID", CURATOR_MODEL_ID),
+                      ("SUMMARIZER_MODEL_ID", SUMMARIZER_MODEL_ID)):
+    if _valor in _MODELOS_FORMATO_ANTHROPIC:
+        raise RuntimeError(
+            f"{_nome}={_valor!r} usa o endpoint /v1/messages (formato Anthropic) "
+            "e este projeto só fala /v1/chat/completions. Compatíveis: "
+            "deepseek-v4-flash, deepseek-v4-pro, glm-5.1, glm-5.2, kimi-k2.6, "
+            "kimi-k2.7-code, kimi-k3, mimo-v2.5, mimo-v2.5-pro, hy3, grok-4.5."
+        )
+
 NEWSAPI_ORG_KEY = os.getenv("NEWSAPI_ORG_KEY")
 NEWSDATA_IO_KEY = os.getenv("NEWSDATA_IO_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")

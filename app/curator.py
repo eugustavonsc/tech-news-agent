@@ -107,7 +107,7 @@ def select(candidates, recent_titles=()):
 
     try:
         response = client.chat.completions.create(
-            model=config.MODEL_ID,
+            model=config.CURATOR_MODEL_ID,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": _build_user_prompt(candidates, recent_titles)},

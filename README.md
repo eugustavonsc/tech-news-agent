@@ -84,6 +84,8 @@ Copie `.env.example` para `.env` e preencha:
 | `OPENCODER_API_KEY` | Chave de API da OpenCoderGo |
 | `OPENCODER_BASE_URL` | Base URL da API OpenCoderGo |
 | `MODEL_ID` | Modelo a ser chamado (ex: `deepseek-v4-flash`) |
+| `CURATOR_MODEL_ID` | Modelo da curadoria (opcional; vazio = `MODEL_ID`). Roda ~144x/dia e é quase todo o consumo do projeto — deixe num modelo barato |
+| `SUMMARIZER_MODEL_ID` | Modelo do resumo (opcional; vazio = `MODEL_ID`). Roda ~7x/dia;
 | `DATABASE_URL` | URL do PostgreSQL |
 | `NEWSAPI_ORG_KEY` | Chave da API NewsAPI.org |
 | `NEWSDATA_IO_KEY` | Chave da API NewsData.io |
@@ -94,6 +96,8 @@ Copie `.env.example` para `.env` e preencha:
 | `MAX_APPROVED_PER_RUN` | Máximo de notícias aprovadas pela curadoria por execução (padrão: `2`) |
 | `CURATOR_CANDIDATE_LIMIT` | Quantas candidatas a curadoria avalia por execução; as demais ficam para a próxima (padrão: `40`) |
 | `DUPLICATE_LOOKBACK_HOURS` | Janela em que um assunto já enviado bloqueia notícias parecidas (padrão: `48`) |
+
+⚠️ **Antes de trocar `CURATOR_MODEL_ID` ou `SUMMARIZER_MODEL_ID`, teste o descarte.** O `bot.py` compara a resposta do resumo com `IRRELEVANTE` por **igualdade exata de string**: um modelo que responda `IRRELEVANTE.` com ponto faz a notícia fora de tema ser enviada aos inscritos.
 
 ⚠️ **Importante:** o bot só consegue enviar mensagens para chats que já iniciaram contato com ele — o dono precisa mandar `/start` para o bot no Telegram antes da primeira execução (veja [Inscrições](#inscrições)).
 
