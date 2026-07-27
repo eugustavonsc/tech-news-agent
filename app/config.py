@@ -94,7 +94,7 @@ MAX_APPROVED_PER_RUN = int(os.getenv("MAX_APPROVED_PER_RUN", "3"))
 
 # Quantas candidatas a curadoria avalia por execução. As que sobram do lote não
 # são tocadas e voltam a ser avaliadas na execução seguinte.
-CURATOR_CANDIDATE_LIMIT = int(os.getenv("CURATOR_CANDIDATE_LIMIT", "40"))
+CURATOR_CANDIDATE_LIMIT = int(os.getenv("CURATOR_CANDIDATE_LIMIT", "80"))
 
 # Janela em que um assunto já enviado bloqueia notícias parecidas.
 DUPLICATE_LOOKBACK_HOURS = float(os.getenv("DUPLICATE_LOOKBACK_HOURS", "48"))
