@@ -56,6 +56,14 @@ NEWSAPI_ORG_KEY = os.getenv("NEWSAPI_ORG_KEY")
 NEWSDATA_IO_KEY = os.getenv("NEWSDATA_IO_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
+FREENEWSAPI_KEY = os.getenv("FREENEWSAPI_KEY")
+# Ao contrário das outras três fontes (1 chamada = lista completa com imagem),
+# a FreeNewsApi só devolve imagem no /v1/details, por artigo — este é o teto de
+# quantos artigos da listagem viram uma segunda chamada por execução. Com o job
+# rodando a cada ~10-12 min (~144x/dia), 15 dá ~144 * 16 = 2304 chamadas/dia,
+# dentro do free tier (5000/dia) mesmo sem cache entre execuções.
+FREENEWSAPI_MAX_ARTICLES = int(os.getenv("FREENEWSAPI_MAX_ARTICLES", "15"))
+
 MAX_NEWS_PER_RUN = int(os.getenv("MAX_NEWS_PER_RUN", "10"))
 RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "90"))
 
@@ -67,7 +75,7 @@ CURATION_ENABLED = os.getenv("CURATION_ENABLED", "true").lower() not in ("false"
 # Teto de notícias aprovadas por execução. Com o job rodando a cada ~10 min,
 # 2 por execução já é bem mais que o volume que os inscritos aguentam — na
 # prática a maioria das execuções aprova 0 ou 1.
-MAX_APPROVED_PER_RUN = int(os.getenv("MAX_APPROVED_PER_RUN", "2"))
+MAX_APPROVED_PER_RUN = int(os.getenv("MAX_APPROVED_PER_RUN", "3"))
 
 # Quantas candidatas a curadoria avalia por execução. As que sobram do lote não
 # são tocadas e voltam a ser avaliadas na execução seguinte.

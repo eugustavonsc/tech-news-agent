@@ -175,10 +175,87 @@ def fetch_gnews():
     ]
 
 
+FREENEWSAPI_BASE = "https://api.freenewsapi.io/v1"
+
+
+def fetch_freenewsapi():
+    """FreeNewsApi.io: testada no bot_instagram antes de entrar aqui (ver
+    CLAUDE.md). Duas pegadinhas que a doc não deixa claro e só apareceram
+    testando contra a API real:
+
+    - O código de idioma é `pt-419` (português latino-americano no formato
+      IETF), não `pt` puro — este último devolve 400 "Invalid language".
+    - A imagem só vem no endpoint `/v1/details`, por UUID; a listagem em
+      `/v1/news` só tem título e metadado. Por isso esta função faz uma
+      chamada extra por artigo (FREENEWSAPI_MAX_ARTICLES por execução), ao
+      contrário das outras três fontes, que trazem tudo numa chamada só.
+    """
+    if not config.FREENEWSAPI_KEY:
+        logger.warning("FREENEWSAPI_KEY não configurada, pulando FreeNewsApi")
+        return []
+
+    headers = {"x-api-key": config.FREENEWSAPI_KEY}
+
+    try:
+        response = requests.get(
+            f"{FREENEWSAPI_BASE}/news",
+            headers=headers,
+            params={
+                "language": "pt-419",
+                "country": "BR",
+                "topic": "technology",
+                "limit": config.FREENEWSAPI_MAX_ARTICLES,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.exception("Falha ao listar notícias na FreeNewsApi")
+        return []
+
+    listagem = response.json().get("data") or []
+
+    articles = []
+    for item in listagem:
+        uuid = item.get("uuid")
+        if not uuid:
+            continue
+
+        try:
+            detalhe = requests.get(
+                f"{FREENEWSAPI_BASE}/details",
+                headers=headers,
+                params={"uuid": uuid},
+                timeout=REQUEST_TIMEOUT,
+            )
+            detalhe.raise_for_status()
+        except requests.RequestException:
+            # Uma falha pontual (rate limit, artigo removido) não deve
+            # derrubar o lote inteiro — só essa notícia fica de fora.
+            logger.warning("Falha ao buscar detalhes do artigo %s na FreeNewsApi", uuid)
+            continue
+
+        dados = detalhe.json().get("data") or {}
+        url = dados.get("original_url")
+        if not url:
+            continue
+
+        articles.append({
+            "title": dados.get("title") or item.get("title"),
+            "description": dados.get("incipit"),
+            "url": url,
+            "source": dados.get("publisher") or "FreeNewsApi",
+            "published_at": dados.get("published_at") or item.get("published_at"),
+            "image_url": dados.get("thumbnail"),
+        })
+
+    return articles
+
+
 def fetch_all_news():
-    """Busca notícias nas três fontes configuradas e retorna uma lista
+    """Busca notícias nas quatro fontes configuradas e retorna uma lista
     deduplicada por URL, ordenada da mais recente para a mais antiga."""
-    sources = (fetch_newsapi, fetch_newsdata, fetch_gnews)
+    sources = (fetch_newsapi, fetch_newsdata, fetch_gnews, fetch_freenewsapi)
 
     articles = []
     for fetch in sources:
