@@ -1,6 +1,7 @@
 import difflib
 import logging
 import re
+import time
 import unicodedata
 
 import requests
@@ -189,6 +190,13 @@ def fetch_freenewsapi():
       `/v1/news` só tem título e metadado. Por isso esta função faz uma
       chamada extra por artigo (FREENEWSAPI_MAX_ARTICLES por execução), ao
       contrário das outras três fontes, que trazem tudo numa chamada só.
+
+    ⚠️ Observado em produção (2026-07-27): as mesmas notícias (sempre as
+    últimas da lista) falhavam em toda execução. Causa confirmada no painel
+    da FreeNewsApi: o free tier tem **2 requisições/segundo**, separado da
+    cota diária de 5000. `FREENEWSAPI_DETAIL_DELAY` espaça as chamadas de
+    detalhe pra respeitar isso; sem ele, os últimos itens do lote
+    sistematicamente ficavam de fora.
     """
     if not config.FREENEWSAPI_KEY:
         logger.warning("FREENEWSAPI_KEY não configurada, pulando FreeNewsApi")
@@ -206,7 +214,7 @@ def fetch_freenewsapi():
                 "topic": "technology",
                 "limit": config.FREENEWSAPI_MAX_ARTICLES,
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=config.FREENEWSAPI_TIMEOUT,
         )
         response.raise_for_status()
     except requests.RequestException:
@@ -216,23 +224,33 @@ def fetch_freenewsapi():
     listagem = response.json().get("data") or []
 
     articles = []
-    for item in listagem:
+    for indice, item in enumerate(listagem):
         uuid = item.get("uuid")
         if not uuid:
             continue
+
+        if indice > 0:
+            # Espaça as chamadas pra não estourar rate limit de rajada (ver
+            # nota da função) — só entre uma chamada e outra, não antes da
+            # primeira.
+            time.sleep(config.FREENEWSAPI_DETAIL_DELAY)
 
         try:
             detalhe = requests.get(
                 f"{FREENEWSAPI_BASE}/details",
                 headers=headers,
                 params={"uuid": uuid},
-                timeout=REQUEST_TIMEOUT,
+                timeout=config.FREENEWSAPI_TIMEOUT,
             )
             detalhe.raise_for_status()
-        except requests.RequestException:
+        except requests.RequestException as exc:
             # Uma falha pontual (rate limit, artigo removido) não deve
-            # derrubar o lote inteiro — só essa notícia fica de fora.
-            logger.warning("Falha ao buscar detalhes do artigo %s na FreeNewsApi", uuid)
+            # derrubar o lote inteiro — só essa notícia fica de fora. O tipo
+            # da exceção vai no log porque "falhou" sozinho não diz se foi
+            # timeout, 429 ou outra coisa — sem isso, só foi diagnosticável
+            # testando a chamada manualmente depois.
+            logger.warning("Falha ao buscar detalhes do artigo %s na FreeNewsApi: %s",
+                           uuid, exc)
             continue
 
         dados = detalhe.json().get("data") or {}

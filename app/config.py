@@ -63,6 +63,18 @@ FREENEWSAPI_KEY = os.getenv("FREENEWSAPI_KEY")
 # rodando a cada ~10-12 min (~144x/dia), 15 dá ~144 * 16 = 2304 chamadas/dia,
 # dentro do free tier (5000/dia) mesmo sem cache entre execuções.
 FREENEWSAPI_MAX_ARTICLES = int(os.getenv("FREENEWSAPI_MAX_ARTICLES", "15"))
+# Observado em produção (2026-07-27): sem espaçar as chamadas de /v1/details,
+# os últimos itens do lote falhavam sistematicamente. Causa confirmada no
+# painel da FreeNewsApi: o plano free tem limite de **2 requisições/segundo**
+# (diferente da cota diária de 5000). 0.5s = exatamente 2 req/s; a folga é
+# pequena de propósito, dá pra subir se ainda estourar.
+FREENEWSAPI_DETAIL_DELAY = float(os.getenv("FREENEWSAPI_DETAIL_DELAY", "0.5"))
+# Timeout próprio, maior que o REQUEST_TIMEOUT (10s) do fetcher.py: medido
+# direto contra a API em 2026-07-27, latência normal ficou em 6-7s mas um pico
+# isolado chegou a 22,6s (e apareceu como ReadTimeoutError real em produção,
+# no timeout de 10s compartilhado). Separado das outras três fontes para não
+# deixar o ciclo inteiro mais tolerante a lentidão só por causa desta.
+FREENEWSAPI_TIMEOUT = float(os.getenv("FREENEWSAPI_TIMEOUT", "20"))
 
 MAX_NEWS_PER_RUN = int(os.getenv("MAX_NEWS_PER_RUN", "10"))
 RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "90"))
