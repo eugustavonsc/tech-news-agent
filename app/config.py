@@ -54,7 +54,10 @@ for _nome, _valor in (("MODEL_ID", MODEL_ID),
 
 NEWSAPI_ORG_KEY = os.getenv("NEWSAPI_ORG_KEY")
 NEWSDATA_IO_KEY = os.getenv("NEWSDATA_IO_KEY")
-GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
+# GNEWS_API_KEY removido: o free tier só dava 100 req/dia e a cota esgotava
+# no meio da tarde com o job rodando ~144x/dia (confirmado em produção em
+# 2026-07-27). Substituído pelos feeds RSS em RSS_FEEDS (fetcher.py), que não
+# têm cota diária nem de rajada.
 
 FREENEWSAPI_KEY = os.getenv("FREENEWSAPI_KEY")
 # Ao contrário das outras três fontes (1 chamada = lista completa com imagem),

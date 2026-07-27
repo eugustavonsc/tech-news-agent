@@ -4,6 +4,7 @@ import re
 import time
 import unicodedata
 
+import feedparser
 import requests
 
 from app import config
@@ -145,35 +146,118 @@ def fetch_newsdata():
     ]
 
 
-def fetch_gnews():
-    if not config.GNEWS_API_KEY:
-        logger.warning("GNEWS_API_KEY não configurada, pulando GNews")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+# Substituem o GNews (removido): o free tier dava só 100 req/dia, e com o job
+# rodando ~144x/dia a cota esgotava no meio da tarde — confirmado em produção
+# em 2026-07-27 (403 "You have reached your request limit for today").
+# RSS não tem cota diária nem de rajada.
+#
+# Testados um a um contra o feed real em 2026-07-27 antes de entrar aqui (ver
+# CLAUDE.md): 5 destes 9 vêm com imagem embutida no próprio feed, sem precisar
+# de scraper — o article_images.py testado e descartado no bot_instagram só
+# conseguiu achar foto extra em 1 de 15 artigos raspando a página do zero.
+# Os outros 4 não têm imagem no feed, mas ainda servem o Telegram normalmente
+# (send_message aceita image_url=None); só não alimentam a instagram_queue,
+# que exige imagem.
+RSS_FEEDS = (
+    ("Tecnoblog", "https://tecnoblog.net/feed/"),
+    ("G1 Tecnologia", "https://g1.globo.com/dynamo/tecnologia/rss2.xml"),
+    ("Adrenaline", "https://www.adrenaline.com.br/feed/"),
+    ("Mundo Conectado", "https://www.mundoconectado.com.br/feed/"),
+    ("GameVicio", "https://www.gamevicio.com/feed/"),
+    ("Canaltech", "https://canaltech.com.br/rss/"),
+    ("Olhar Digital", "https://olhardigital.com.br/feed/"),
+    ("pplware", "https://pplware.sapo.pt/feed/"),
+    ("Sapo Tek", "https://tek.sapo.pt/rss"),
+)
+
+
+def _rss_description(entry):
+    """Remove marcação HTML do resumo — RSS costuma vir com <p> e afins, e o
+    texto vai direto pro prompt do curador/summarizer, que espera texto puro.
+    """
+    return _HTML_TAG_RE.sub("", entry.get("summary") or "").strip()
+
+
+def _rss_image(entry):
+    """Cada site estrutura a imagem de um jeito diferente no RSS — checa os
+    três formatos mais comuns, na ordem de confiabilidade observada testando
+    os feeds reais.
+
+    Alguns feeds (visto no Tecnoblog) trazem `media_content` misturando foto
+    real, embed de vídeo e ícone de afiliado no mesmo artigo, sem indicar
+    qual é qual além do `medium`. Entre os candidatos com `medium="image"`,
+    prioriza o de maior largura declarada — o ícone pequeno perde para a foto
+    de capa quando o feed informa dimensão; quando não informa, fica na
+    ordem em que o site listou (aceitável: o pior caso é a mesma notícia
+    sem imagem, não uma imagem errada — o `images.py` do bot_instagram
+    rejeita o que for pequeno demais antes de publicar).
+    """
+    for item in entry.get("media_thumbnail") or ():
+        if item.get("url"):
+            return item["url"]
+
+    candidatos = [
+        m for m in (entry.get("media_content") or ())
+        if m.get("medium") == "image" and m.get("url")
+    ]
+    if candidatos:
+        candidatos.sort(key=lambda m: int(m.get("width") or 0), reverse=True)
+        return candidatos[0]["url"]
+
+    for enc in entry.get("enclosures") or ():
+        if (enc.get("type") or "").startswith("image") and enc.get("href"):
+            return enc["href"]
+
+    return None
+
+
+def _rss_published_iso(entry):
+    """ISO 8601, para casar com o formato das outras fontes: fetch_all_news()
+    ordena por published_at como string, e RFC 822 puro ("Mon, 27 Jul...")
+    não ordena certo comparado a "2026-07-27T..." — o dia da semana na frente
+    quebraria a ordenação cronológica."""
+    parsed = entry.get("published_parsed")
+    if not parsed:
+        return entry.get("published")
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", parsed)
+
+
+def fetch_rss(feed_url, source_name):
+    parsed = feedparser.parse(feed_url)
+    if parsed.bozo and not parsed.entries:
+        logger.warning("Feed RSS inacessível ou malformado: %s (%s)",
+                       source_name, feed_url)
         return []
 
-    response = requests.get(
-        "https://gnews.io/api/v4/search",
-        params={
-            "lang": "pt",
-            "q": "tecnologia",
-            "apikey": config.GNEWS_API_KEY,
-        },
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    articles = response.json().get("articles", [])
+    articles = []
+    for entry in parsed.entries:
+        url = entry.get("link")
+        if not url:
+            continue
+        articles.append({
+            "title": entry.get("title"),
+            "description": _rss_description(entry),
+            "url": url,
+            "source": source_name,
+            "published_at": _rss_published_iso(entry),
+            "image_url": _rss_image(entry),
+        })
+    return articles
 
-    return [
-        {
-            "title": a.get("title"),
-            "description": a.get("description"),
-            "url": a.get("url"),
-            "source": (a.get("source") or {}).get("name", "GNews"),
-            "published_at": a.get("publishedAt"),
-            "image_url": a.get("image"),
-        }
-        for a in articles
-        if a.get("url")
-    ]
+
+def fetch_all_rss():
+    """Lê todos os feeds de RSS_FEEDS. Falha num feed não derruba os outros —
+    mesmo tratamento de isolamento que as outras fontes já têm em
+    fetch_all_news(), só que aqui dentro de uma única fonte "lógica"."""
+    articles = []
+    for source_name, feed_url in RSS_FEEDS:
+        try:
+            articles.extend(fetch_rss(feed_url, source_name))
+        except Exception:
+            logger.exception("Falha ao ler feed RSS: %s", source_name)
+    return articles
 
 
 FREENEWSAPI_BASE = "https://api.freenewsapi.io/v1"
@@ -271,9 +355,10 @@ def fetch_freenewsapi():
 
 
 def fetch_all_news():
-    """Busca notícias nas quatro fontes configuradas e retorna uma lista
-    deduplicada por URL, ordenada da mais recente para a mais antiga."""
-    sources = (fetch_newsapi, fetch_newsdata, fetch_gnews, fetch_freenewsapi)
+    """Busca notícias em NewsAPI, NewsData, os feeds RSS (RSS_FEEDS) e
+    FreeNewsApi, e retorna uma lista deduplicada por URL, ordenada da mais
+    recente para a mais antiga."""
+    sources = (fetch_newsapi, fetch_newsdata, fetch_all_rss, fetch_freenewsapi)
 
     articles = []
     for fetch in sources:
